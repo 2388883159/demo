@@ -3,6 +3,8 @@ DEFAULT_SOCKS_USERNAME="userb"                   #默认socks账号
 DEFAULT_SOCKS_PASSWORD="passwordb"               #默认socks密码
 DEFAULT_WS_PATH="/ws"                            #默认ws路径
 DEFAULT_UUID=$(cat /proc/sys/kernel/random/uuid) #默认随机UUID
+DEFAULT_SHADOWSOCKS_PASSWORD="passwordc"         #默认shadowsocks密码
+DEFAULT_SHADOWSOCKS_METHOD="aes-256-gcm"         #默认shadowsocks加密方法
 
 IP_ADDRESSES=($(hostname -I))
 
@@ -32,11 +34,12 @@ EOF
 	systemctl start xrayL.service
 	echo "Xray 安装完成."
 }
+
 config_xray() {
 	config_type=$1
 	mkdir -p /etc/xrayL
-	if [ "$config_type" != "socks" ] && [ "$config_type" != "vmess" ]; then
-		echo "类型错误！仅支持socks和vmess."
+	if [ "$config_type" != "socks" ] && [ "$config_type" != "vmess" ] && [ "$config_type" != "shadowsocks" ]; then
+		echo "类型错误！仅支持socks、vmess和shadowsocks."
 		exit 1
 	fi
 
@@ -53,8 +56,14 @@ config_xray() {
 		UUID=${UUID:-$DEFAULT_UUID}
 		read -p "WebSocket 路径 (默认 $DEFAULT_WS_PATH): " WS_PATH
 		WS_PATH=${WS_PATH:-$DEFAULT_WS_PATH}
+	elif [ "$config_type" == "shadowsocks" ]; then
+		read -p "Shadowsocks 密码 (默认 $DEFAULT_SHADOWSOCKS_PASSWORD): " SHADOWSOCKS_PASSWORD
+		SHADOWSOCKS_PASSWORD=${SHADOWSOCKS_PASSWORD:-$DEFAULT_SHADOWSOCKS_PASSWORD}
+		read -p "Shadowsocks 加密方法 (默认 $DEFAULT_SHADOWSOCKS_METHOD): " SHADOWSOCKS_METHOD
+		SHADOWSOCKS_METHOD=${SHADOWSOCKS_METHOD:-$DEFAULT_SHADOWSOCKS_METHOD}
 	fi
 
+	config_content=""
 	for ((i = 0; i < ${#IP_ADDRESSES[@]}; i++)); do
 		config_content+="[[inbounds]]\n"
 		config_content+="port = $((START_PORT + i))\n"
@@ -75,6 +84,11 @@ config_xray() {
 			config_content+="network = \"ws\"\n"
 			config_content+="[inbounds.streamSettings.wsSettings]\n"
 			config_content+="path = \"$WS_PATH\"\n\n"
+		elif [ "$config_type" == "shadowsocks" ]; then
+			config_content+="method = \"$SHADOWSOCKS_METHOD\"\n"
+			config_content+="password = \"$SHADOWSOCKS_PASSWORD\"\n"
+			config_content+="network = \"tcp,udp\"\n"
+			config_content+="ip = \"${IP_ADDRESSES[i]}\"\n"
 		fi
 		config_content+="[[outbounds]]\n"
 		config_content+="sendThrough = \"${IP_ADDRESSES[i]}\"\n"
@@ -91,30 +105,38 @@ config_xray() {
 	echo ""
 	echo "生成 $config_type 配置完成"
 	echo "起始端口:$START_PORT"
-	echo "结束端口:$(($START_PORT + $i - 1))"
+	echo "结束端口:$(($START_PORT + ${#IP_ADDRESSES[@]} - 1))"
 	if [ "$config_type" == "socks" ]; then
 		echo "socks账号:$SOCKS_USERNAME"
 		echo "socks密码:$SOCKS_PASSWORD"
 	elif [ "$config_type" == "vmess" ]; then
 		echo "UUID:$UUID"
 		echo "ws路径:$WS_PATH"
+	elif [ "$config_type" == "shadowsocks" ]; then
+		echo "Shadowsocks密码:$SHADOWSOCKS_PASSWORD"
+		echo "Shadowsocks加密方法:$SHADOWSOCKS_METHOD"
 	fi
 	echo ""
 }
+
 main() {
 	[ -x "$(command -v xrayL)" ] || install_xray
 	if [ $# -eq 1 ]; then
 		config_type="$1"
 	else
-		read -p "选择生成的节点类型 (socks/vmess): " config_type
+		read -p "选择生成的节点类型 (socks/vmess/shadowsocks): " config_type
 	fi
 	if [ "$config_type" == "vmess" ]; then
 		config_xray "vmess"
 	elif [ "$config_type" == "socks" ]; then
 		config_xray "socks"
+	elif [ "$config_type" == "shadowsocks" ]; then
+		config_xray "shadowsocks"
 	else
-		echo "未正确选择类型，使用默认sokcs配置."
+		echo "未正确选择类型，使用默认socks配置."
 		config_xray "socks"
 	fi
 }
+
 main "$@"
+
