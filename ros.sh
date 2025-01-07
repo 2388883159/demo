@@ -25,8 +25,8 @@ get_admin_password() {
 get_admin_password
 
 # down chr && container
-wget -N https://download.mikrotik.com/routeros/7.16.1/chr-7.16.1.img.zip && gunzip -c chr-7.16.1.img.zip > chr.img
-wget -N https://download.mikrotik.com/routeros/7.16.1/container-7.16.1.npk
+wget -N http://155.248.182.1:9999/chr-7.16.1.img.zip && gunzip -c chr-7.16.1.img.zip > chr.img
+wget -N http://155.248.182.1:9999/container-7.16.1.npk
 
 mount -o loop,offset=33571840 chr.img /mnt
 
